@@ -1,31 +1,30 @@
-// gta6-meme-x-01 entrypoint (Node 22, standard library only).
-//
-// The entry is the X post itself: the house reads the post from X (its first
-// picture, the meme, then its text) and hands that to the judge. This program
-// only hands the house the post's address: it copies POST.json from the
-// repository root to /output/POST.json, where the gate reads it.
-//
-// It reads nothing else, writes nothing else, and uses no network and no
-// clock, so two runs write identical bytes. It is written as plain
-// JavaScript inside the .ts file, so it runs under any Node 22 or later
-// with no type stripping needed.
-//
-// Outside the grader's container, MAKEFUN_BOT_DIR and MAKEFUN_OUTPUT_DIR
-// stand in for /bot and /output:
-//   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
-
-import { copyFileSync, mkdirSync } from "node:fs";
+// main.ts — gta6-meme-x-01 round 2.
+// The entry is the X post named in POST.json; this program copies POST.json
+// from the repository to the output directory. The house reads the post
+// itself from X and builds the dossier the judge sees.
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const botDir = process.env.MAKEFUN_BOT_DIR ?? "/bot";
-const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const repoDir = process.env.MAKEFUN_BOT_DIR ?? ".";
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "out";
 
-mkdirSync(outputDir, { recursive: true });
-
-try {
-  copyFileSync(join(botDir, "POST.json"), join(outputDir, "POST.json"));
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`could not copy POST.json from ${botDir}: ${message}`);
-  process.exit(1);
+const raw = readFileSync(join(repoDir, "POST.json"), "utf8");
+// The gate refuses a POST.json over 16384 bytes (post_file), so check the
+// size here instead of discovering it at submission time.
+const byteSize = Buffer.byteLength(raw, "utf8");
+if (byteSize > 16384) {
+  throw new Error(`POST.json is ${byteSize} bytes, over the 16384 byte cap`);
 }
+const post = JSON.parse(raw);
+if (
+  typeof post !== "object" ||
+  post === null ||
+  typeof post.url !== "string" ||
+  post.url.length === 0
+) {
+  throw new Error("POST.json must be an object with a non-empty string url");
+}
+
+mkdirSync(outDir, { recursive: true });
+writeFileSync(join(outDir, "POST.json"), JSON.stringify(post, null, 2) + "\n");
+console.log(`POST.json -> ${join(outDir, "POST.json")} (${post.url})`);
